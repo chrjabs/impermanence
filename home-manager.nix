@@ -7,8 +7,6 @@ let
   persistentStorageNames = attrNames cfg;
 
   getDirPath = v: v.directory;
-  isBindfs = v: v.method == "bindfs";
-  isSymlink = v: v.method == "symlink";
 
   inherit (pkgs.callPackage ./lib.nix { })
     splitPath
@@ -219,7 +217,7 @@ in
           listToAttrs (map
             (mkLinkNameValuePair persistentStorageName)
             (map getDirPath (cfg.${persistentStorageName}.files ++
-              (filter isSymlink cfg.${persistentStorageName}.directories)))
+              (filter (v: v.method == "symlink") cfg.${persistentStorageName}.directories)))
           );
       in
       foldl' recursiveUpdate { } (map mkLinksToPersistentStorage persistentStorageNames);
@@ -294,7 +292,7 @@ in
         mkBindMountServicesForPath = persistentStorageName:
           listToAttrs (map
             (mkBindMountService persistentStorageName)
-            (map getDirPath (filter isBindfs cfg.${persistentStorageName}.directories))
+            (map getDirPath (filter (v: v.method == "bindfs") cfg.${persistentStorageName}.directories))
           );
       in
       builtins.foldl'
@@ -358,7 +356,7 @@ in
         mkBindMountsForPath = persistentStorageName:
           concatMapStrings
             (mkBindMount persistentStorageName)
-            (map getDirPath (filter isBindfs cfg.${persistentStorageName}.directories));
+            (map getDirPath (filter (v: v.method == "bindfs") cfg.${persistentStorageName}.directories));
 
         mkUnmount = persistentStorageName: dir:
           let
@@ -378,7 +376,7 @@ in
         mkUnmountsForPath = persistentStorageName:
           concatMapStrings
             (mkUnmount persistentStorageName)
-            (map getDirPath (filter isBindfs cfg.${persistentStorageName}.directories));
+            (map getDirPath (filter (v: v.method == "bindfs") cfg.${persistentStorageName}.directories));
 
         mkLinkCleanup = persistentStorageName: dir:
           let
@@ -403,12 +401,12 @@ in
         mkLinkCleanupForPath = persistentStorageName:
           concatMapStrings
             (mkLinkCleanup persistentStorageName)
-            (map getDirPath (filter isSymlink cfg.${persistentStorageName}.directories));
+            (map getDirPath (filter (v: v.method == "symlink") cfg.${persistentStorageName}.directories));
 
 
       in
       mkMerge [
-        (mkIf (any (path: (filter isSymlink cfg.${path}.directories) != [ ]) persistentStorageNames) {
+        (mkIf (any (path: (filter (v: v.method == "symlink") cfg.${path}.directories) != [ ]) persistentStorageNames) {
           # Clean up existing empty directories in the way of links
           cleanEmptyLinkTargets =
             dag.entryBefore
@@ -417,7 +415,7 @@ in
                 ${concatMapStrings mkLinkCleanupForPath persistentStorageNames}
               '';
         })
-        (mkIf (any (path: (filter isBindfs cfg.${path}.directories) != [ ]) persistentStorageNames) {
+        (mkIf (any (path: (filter (v: v.method == "bindfs") cfg.${path}.directories) != [ ]) persistentStorageNames) {
           createAndMountPersistentStoragePaths =
             dag.entryBefore
               [ "writeBoundary" ]
@@ -447,7 +445,7 @@ in
                 unmountBindMounts
               '';
         })
-        (mkIf (any (path: (cfg.${path}.files != [ ]) || ((filter isSymlink cfg.${path}.directories) != [ ])) persistentStorageNames) {
+        (mkIf (any (path: (cfg.${path}.files != [ ]) || ((filter (v: v.method == "symlink") cfg.${path}.directories) != [ ])) persistentStorageNames) {
           createTargetFileDirectories =
             dag.entryBefore
               [ "writeBoundary" ]
@@ -457,7 +455,7 @@ in
                     (targetFilePath: ''
                       mkdir -p ${escapeShellArg (concatPaths [ cfg.${persistentStorageName}.persistentStoragePath (dirOf targetFilePath) ])}
                     '')
-                    (map getDirPath (cfg.${persistentStorageName}.files ++ (filter isSymlink cfg.${persistentStorageName}.directories))))
+                    (map getDirPath (cfg.${persistentStorageName}.files ++ (filter (v: v.method == "symlink") cfg.${persistentStorageName}.directories))))
                 persistentStorageNames);
         })
       ];
