@@ -41,7 +41,7 @@ in
     home.persistence = mkOption {
       default = { };
       type = with types; attrsOf (
-        submodule ({ name, ... }: {
+        submodule ({ name, config, ... }: {
           options =
             {
               persistentStoragePath = mkOption {
@@ -50,6 +50,18 @@ in
                 description = ''
                   The path to persistent storage where the real
                   files and directories should be stored.
+                '';
+              };
+
+              defaultDirectoryMethod = mkOption {
+                type = types.enum [ "bindfs" "symlink" ];
+                default = "bindfs";
+                description = ''
+                  The linking method that should be used for directories.
+                  bindfs is the default and works for most use cases, however
+                  some programs may behave better with symlinks.
+
+                  This can be overrided on a per entry basis.
                 '';
               };
 
@@ -63,12 +75,11 @@ in
                       };
                       method = mkOption {
                         type = types.enum [ "bindfs" "symlink" ];
-                        default = "bindfs";
+                        default = config.defaultDirectoryMethod;
                         description = ''
-                          The linking method that should be used for this
-                          directory. bindfs is the default and works for most use
-                          cases, however some programs may behave better with
-                          symlinks.
+                          The linking method to be used for this specific
+                          directory entry. Defaults to
+                          <literal>defaultDirectoryMethod</literal>.
                         '';
                       };
                     };
