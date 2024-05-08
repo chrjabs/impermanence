@@ -234,7 +234,7 @@ in
         mkLinksToPersistentStorage = persistentStorageName:
           listToAttrs (map
             (mkLinkNameValuePair persistentStorageName)
-            (map getDirPath (cfg.${persistentStorageName}.files ++
+            (cfg.${persistentStorageName}.files ++ (map getDirPath
               (filter (v: v.method == "symlink") cfg.${persistentStorageName}.directories)))
           );
       in
