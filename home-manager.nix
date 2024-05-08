@@ -1,10 +1,21 @@
 { pkgs, config, lib, ... }:
 
-with lib;
 let
+  inherit (lib)
+    any
+    concatMapStrings
+    escapeShellArg
+    filter
+    mkIf
+    mkOption
+    optional
+    tail
+    types
+    ;
+
   cfg = config.home.persistence;
 
-  persistentStorageNames = attrNames cfg;
+  persistentStorageNames = lib.attrNames cfg;
 
   getDirPath = v: v.directory;
 
@@ -40,12 +51,12 @@ in
 
     home.persistence = mkOption {
       default = { };
-      type = with types; attrsOf (
-        submodule ({ name, config, ... }: {
+      type = types.attrsOf (
+        types.submodule ({ name, config, ... }: {
           options =
             {
               persistentStoragePath = mkOption {
-                type = path;
+                type = types.path;
                 default = name;
                 description = ''
                   The path to persistent storage where the real
@@ -73,10 +84,10 @@ in
 
               directories = mkOption {
                 type = types.listOf (
-                  types.coercedTo types.str (directory: { inherit directory; }) (submodule {
+                  types.coercedTo types.str (directory: { inherit directory; }) (types.submodule {
                     options = {
                       directory = mkOption {
-                        type = str;
+                        type = types.str;
                         description = "The directory path to be linked.";
                       };
                       method = mkOption {
@@ -117,7 +128,7 @@ in
               };
 
               files = mkOption {
-                type = with types; listOf str;
+                type = types.listOf types.str;
                 default = [ ];
                 example = [
                   ".screenrc"
@@ -129,12 +140,12 @@ in
               };
 
               allowOther = mkOption {
-                type = with types; nullOr bool;
+                type = types.nullOr types.bool;
                 default = null;
                 example = true;
                 apply = x:
                   if x == null then
-                    warn ''
+                    lib.warn ''
                       home.persistence."${name}".allowOther not set; assuming 'false'.
                       See https://github.com/nix-community/impermanence#home-manager for more info.
                     ''
@@ -182,7 +193,7 @@ in
         For detailed usage, check the <link
         xlink:href="https://github.com/nix-community/impermanence">documentation</link>.
       '';
-      example = literalExpression ''
+      example = lib.literalExpression ''
         {
           "/persistent/home/talyz" = {
             directories = [
@@ -232,13 +243,13 @@ in
         };
 
         mkLinksToPersistentStorage = persistentStorageName:
-          listToAttrs (map
+          lib.listToAttrs (map
             (mkLinkNameValuePair persistentStorageName)
             (cfg.${persistentStorageName}.files ++ (map getDirPath
               (filter (v: v.method == "symlink") cfg.${persistentStorageName}.directories)))
           );
       in
-      foldl' recursiveUpdate { } (map mkLinksToPersistentStorage persistentStorageNames);
+      lib.foldl' lib.recursiveUpdate { } (map mkLinksToPersistentStorage persistentStorageNames);
 
     systemd.user.services =
       let
@@ -252,11 +263,11 @@ in
             targetDir = escapeShellArg (concatPaths [ cfg.${persistentStorageName}.persistentStoragePath dir ]);
             mountPoint = escapeShellArg (concatPaths [ config.home.homeDirectory mountDir ]);
             name = "bindMount-${sanitizeName targetDir}";
-            bindfsOptions = concatStringsSep "," (
+            bindfsOptions = lib.concatStringsSep "," (
               optional (!cfg.${persistentStorageName}.allowOther) "no-allow-other"
-              ++ optional (versionAtLeast pkgs.bindfs.version "1.14.9") "fsname=${targetDir}"
+              ++ optional (lib.versionAtLeast pkgs.bindfs.version "1.14.9") "fsname=${targetDir}"
             );
-            bindfsOptionFlag = optionalString (bindfsOptions != "") (" -o " + bindfsOptions);
+            bindfsOptionFlag = lib.optionalString (bindfsOptions != "") (" -o " + bindfsOptions);
             bindfs = "bindfs" + bindfsOptionFlag;
             startScript = pkgs.writeShellScript name ''
               set -eu
@@ -302,19 +313,19 @@ in
                 Type = "forking";
                 ExecStart = "${startScript}";
                 ExecStop = "${stopScript}";
-                Environment = "PATH=${makeBinPath [ pkgs.coreutils pkgs.util-linux pkgs.gnugrep pkgs.bindfs ]}:/run/wrappers/bin";
+                Environment = "PATH=${lib.makeBinPath [ pkgs.coreutils pkgs.util-linux pkgs.gnugrep pkgs.bindfs ]}:/run/wrappers/bin";
               };
             };
           };
 
         mkBindMountServicesForPath = persistentStorageName:
-          listToAttrs (map
+          lib.listToAttrs (map
             (mkBindMountService persistentStorageName)
             (map getDirPath (filter (v: v.method == "bindfs") cfg.${persistentStorageName}.directories))
           );
       in
-      builtins.foldl'
-        recursiveUpdate
+      lib.foldl'
+        lib.recursiveUpdate
         { }
         (map mkBindMountServicesForPath persistentStorageNames);
 
@@ -341,11 +352,11 @@ in
                 dir;
             targetDir = escapeShellArg (concatPaths [ cfg.${persistentStorageName}.persistentStoragePath dir ]);
             mountPoint = escapeShellArg (concatPaths [ config.home.homeDirectory mountDir ]);
-            bindfsOptions = concatStringsSep "," (
+            bindfsOptions = lib.concatStringsSep "," (
               optional (!cfg.${persistentStorageName}.allowOther) "no-allow-other"
-              ++ optional (versionAtLeast pkgs.bindfs.version "1.14.9") "fsname=${targetDir}"
+              ++ optional (lib.versionAtLeast pkgs.bindfs.version "1.14.9") "fsname=${targetDir}"
             );
-            bindfsOptionFlag = optionalString (bindfsOptions != "") (" -o " + bindfsOptions);
+            bindfsOptionFlag = lib.optionalString (bindfsOptions != "") (" -o " + bindfsOptions);
             bindfs = "${pkgs.bindfs}/bin/bindfs" + bindfsOptionFlag;
             systemctl = "XDG_RUNTIME_DIR=\${XDG_RUNTIME_DIR:-/run/user/$(id -u)} ${config.systemd.user.systemctlPath}";
           in
@@ -423,7 +434,7 @@ in
 
 
       in
-      mkMerge [
+      lib.mkMerge [
         (mkIf (any (path: (filter (v: v.method == "symlink") cfg.${path}.directories) != [ ]) persistentStorageNames) {
           # Clean up existing empty directories in the way of links
           cleanEmptyLinkTargets =
