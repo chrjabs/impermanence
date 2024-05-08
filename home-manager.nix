@@ -473,7 +473,7 @@ in
                     (targetFilePath: ''
                       mkdir -p ${escapeShellArg (concatPaths [ cfg.${persistentStorageName}.persistentStoragePath (dirOf targetFilePath) ])}
                     '')
-                    (map getDirPath (cfg.${persistentStorageName}.files ++ (filter (v: v.method == "symlink") cfg.${persistentStorageName}.directories))))
+                    (cfg.${persistentStorageName}.files ++ (map getDirPath (filter (v: v.method == "symlink") cfg.${persistentStorageName}.directories))))
                 persistentStorageNames);
         })
       ];
